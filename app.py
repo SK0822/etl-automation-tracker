@@ -1,6 +1,9 @@
 import os
+import asyncio
+import logging
 from typing import Optional
 from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
@@ -12,10 +15,73 @@ import telegram_notifier
 
 load_dotenv()
 
-app = FastAPI(title="ETL Automation Study Tracker", version="1.1.0")
+# Configure logging to show up clearly in Render logs
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("tracker")
 
-# Keep track of last reminder sent timestamp in memory
+# In-memory timestamp of last alert sent
 LAST_REMINDER_SENT_AT: Optional[datetime] = None
+
+async def reminder_scheduler_loop():
+    """
+    Independent background task running inside FastAPI.
+    Checks time every 60 seconds.
+    During study windows (5:30-11:30 AM & 9:00 PM-12:00 AM IST),
+    sends a reminder every 2 hours if active task is not marked Done.
+    """
+    global LAST_REMINDER_SENT_AT
+    logger.info("⏰ Background reminder scheduler initialized.")
+    await asyncio.sleep(5)  # Let server startup finish
+
+    while True:
+        try:
+            now_ist = telegram_notifier.get_current_ist_time()
+            in_window, window_desc = telegram_notifier.is_in_alert_window(now_ist)
+
+            if in_window:
+                should_send = False
+                if LAST_REMINDER_SENT_AT is None:
+                    should_send = True
+                    reason = "First alert since server boot"
+                else:
+                    elapsed_seconds = (now_ist - LAST_REMINDER_SENT_AT).total_seconds()
+                    # 115 minutes buffer for 2-hour interval
+                    if elapsed_seconds >= (115 * 60):
+                        should_send = True
+                        reason = f"2 hours elapsed ({int(elapsed_seconds // 60)} mins since last alert)"
+
+                if should_send:
+                    logger.info(f"Checking Notion for scheduled alert ({reason})...")
+                    summary = notion_client.get_plan_summary()
+                    active = summary.get("active_day")
+                    stats = summary.get("stats", {})
+
+                    if active and active.get("status") != "Done":
+                        logger.info(f"Firing Telegram alert for Day {active.get('day')} (Status: {active.get('status')})...")
+                        msg = telegram_notifier.format_reminder_message(active, stats)
+                        telegram_notifier.send_telegram_message(msg)
+                        LAST_REMINDER_SENT_AT = now_ist
+                        logger.info(f"✅ Telegram alert delivered at {now_ist.strftime('%I:%M %p IST')}!")
+                    else:
+                        logger.info("Active topic is already marked Done. Alert skipped.")
+            else:
+                logger.debug(f"Quiet hours ({window_desc}). Alert suppressed.")
+
+        except Exception as e:
+            logger.error(f"Error in scheduler loop: {e}", exc_info=True)
+
+        # Check every 60 seconds
+        await asyncio.sleep(60)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: spawn background scheduler
+    task = asyncio.create_task(reminder_scheduler_loop())
+    yield
+    # Shutdown
+    task.cancel()
+
+app = FastAPI(title="ETL Automation Study Tracker", version="1.2.0", lifespan=lifespan)
 
 # Serve static directory
 static_dir = os.path.join(os.path.dirname(__file__), "static")
@@ -57,51 +123,19 @@ def update_day(req: UpdateDayRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/ping")
-def ping_keepalive(auto_remind: bool = True):
+def ping_keepalive():
     """
-    UptimeRobot Keepalive Endpoint (pings every 5-10 minutes).
-    1. Keeps Render free service awake 24/7.
-    2. Serves as an automated heartbeat for the 2-hour reminder scheduler
-       during allowed hours (5:30 AM - 11:30 AM & 9:00 PM - 12:00 AM IST).
+    Keepalive endpoint for UptimeRobot.
+    Keeps Render free tier awake.
+    Returns current IST time, alert window status, and last alert timestamp.
     """
-    global LAST_REMINDER_SENT_AT
     now_ist = telegram_notifier.get_current_ist_time()
     in_window, window_desc = telegram_notifier.is_in_alert_window(now_ist)
     
-    reminder_status = "idle"
-    reminder_detail = None
-    
-    if auto_remind and in_window:
-        # Check if 2 hours (115 mins) have elapsed since last reminder
-        should_send = False
-        if LAST_REMINDER_SENT_AT is None:
-            should_send = True
-        else:
-            elapsed = (now_ist - LAST_REMINDER_SENT_AT).total_seconds()
-            if elapsed >= (115 * 60):  # 1 hour 55 mins
-                should_send = True
-
-        if should_send:
-            try:
-                summary = notion_client.get_plan_summary()
-                active = summary.get("active_day")
-                stats = summary.get("stats", {})
-                
-                if active and active.get("status") != "Done":
-                    msg = telegram_notifier.format_reminder_message(active, stats)
-                    telegram_notifier.send_telegram_message(msg)
-                    LAST_REMINDER_SENT_AT = now_ist
-                    reminder_status = "sent_2hr_reminder"
-                    reminder_detail = f"Sent alert for Day {active.get('day')} ({active.get('status')})"
-                else:
-                    reminder_status = "skipped_completed"
-                    reminder_detail = "Active task already marked as Done. Rest time!"
-            except Exception as e:
-                reminder_status = "reminder_error"
-                reminder_detail = str(e)
-    elif not in_window:
-        reminder_status = "suppressed_quiet_hours"
-        reminder_detail = window_desc
+    elapsed_str = None
+    if LAST_REMINDER_SENT_AT:
+        mins = int((now_ist - LAST_REMINDER_SENT_AT).total_seconds() // 60)
+        elapsed_str = f"{mins} minutes ago ({LAST_REMINDER_SENT_AT.strftime('%I:%M %p IST')})"
 
     return {
         "status": "alive",
@@ -109,19 +143,15 @@ def ping_keepalive(auto_remind: bool = True):
         "ist_time": now_ist.strftime("%Y-%m-%d %I:%M:%S %p IST"),
         "in_alert_window": in_window,
         "window_description": window_desc,
-        "reminder_status": reminder_status,
-        "reminder_detail": reminder_detail,
-        "last_reminder_sent_ist": LAST_REMINDER_SENT_AT.strftime("%I:%M:%S %p IST") if LAST_REMINDER_SENT_AT else None
+        "last_alert_sent": elapsed_str or "No alert sent since boot"
     }
 
 @app.get("/api/cron/reminder")
 @app.post("/api/cron/reminder")
 def trigger_scheduled_reminder(force: bool = False):
     """
-    Explicit reminder trigger (e.g. from cron-job.org or manual).
-    Enforces shift-based quiet hours:
-    - Alerts allowed ONLY: 5:30 AM - 11:30 AM & 9:00 PM - 12:00 AM IST.
-    - Suppressed at all other times (11:30 AM - 9:00 PM work shift, 12 AM - 5:30 AM sleep).
+    Explicit reminder trigger.
+    Enforces shift-based quiet hours unless force=True.
     """
     global LAST_REMINDER_SENT_AT
     now_ist = telegram_notifier.get_current_ist_time()

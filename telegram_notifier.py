@@ -127,6 +127,9 @@ def send_telegram_message(text: str, bot_token: Optional[str] = None, chat_id: O
     if not token or not chat:
         raise ValueError("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID")
         
+    token = str(token).strip().strip("'").strip('"')
+    chat = str(chat).strip().strip("'").strip('"')
+    
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
         "chat_id": chat,
