@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ETL Automation 25-Day Tracker</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- Top Navigation -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg tracking-tight text-white flex items-center gap-2">
+            ETL Automation
+            <span class="text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-semibold">25-Day Sprint</span>
+          </h1>
+          <p class="text-xs text-slate-400">Notion 2-Way Live Sync • Starts Nov 18, 2026</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- Shift & Quiet Hours Pill -->
+        <div id="schedulePill" class="hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium">
+          <span id="scheduleDot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+          <span id="scheduleText" class="text-slate-300">IST Checking...</span>
+        </div>
+
+        <!-- Notion Status -->
+        <div class="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span class="hidden md:inline">Notion Connected</span>
+        </div>
+
+        <!-- Telegram Config Button -->
+        <button onclick="openTelegramModal()" id="tgStatusBtn" class="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 hover:bg-sky-500/20 text-xs font-medium transition">
+          <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+          </svg>
+          <span id="tgBtnLabel">Telegram Bot</span>
+        </button>
+
+        <!-- Refresh Button -->
+        <button id="refreshBtn" onclick="fetchPlan()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition border border-slate-700" title="Refresh from Notion">
+          <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+
+    <!-- Shift Schedule Info Banner -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </div>
+        <div>
+          <span class="font-bold text-slate-200">Shift-Aware Schedule:</span>
+          <span class="text-slate-400 ml-1">Work Shift: 2:00 PM – 10:00 PM IST. Alerts fire only during:</span>
+          <span class="text-indigo-400 font-semibold ml-1">5:30 AM – 11:30 AM</span> &amp; <span class="text-indigo-400 font-semibold">9:00 PM – 12:00 AM IST</span>.
+        </div>
+      </div>
+      <div class="flex items-center space-x-2 shrink-0">
+        <span class="text-slate-500">UptimeRobot Ping:</span>
+        <code class="px-2 py-1 rounded bg-slate-950 border border-slate-800 text-sky-400 font-mono text-[11px]">/api/ping</code>
+      </div>
+    </div>
+
+    <!-- Metrics Bar -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Core Progress -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Core 25-Day Goal</p>
+            <h3 id="statCoreProgress" class="text-2xl font-bold text-white mt-1">0 / 25 Days</h3>
+          </div>
+          <span id="statCorePercent" class="text-xs font-bold px-2 py-1 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-lg">0%</span>
+        </div>
+        <div class="w-full bg-slate-800 h-2 rounded-full mt-4 overflow-hidden">
+          <div id="statProgressBar" class="bg-gradient-to-r from-indigo-500 to-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Active Day -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Current Focus</p>
+        <h3 id="statActiveDay" class="text-2xl font-bold text-indigo-400 mt-1">Day 1</h3>
+        <p id="statActivePhase" class="text-xs text-slate-400 mt-1 truncate">Phase: SQL</p>
+      </div>
+
+      <!-- In Progress -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">In Progress</p>
+        <h3 id="statInProgress" class="text-2xl font-bold text-amber-400 mt-1">0 Topics</h3>
+        <p class="text-xs text-slate-400 mt-1">Needs attention today</p>
+      </div>
+
+      <!-- Total Days -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm">
+        <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Curriculum</p>
+        <h3 id="statTotalDays" class="text-2xl font-bold text-white mt-1">31 Days</h3>
+        <p class="text-xs text-slate-400 mt-1">25 Core + 6 Tools Block</p>
+      </div>
+    </div>
+
+    <!-- Active Day Spotlight / Quick Action Hero -->
+    <div id="heroCard" class="bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+      <!-- Glow accent -->
+      <div class="absolute -top-24 -right-24 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+        <div class="space-y-3 max-w-3xl">
+          <div class="flex items-center space-x-3">
+            <span id="heroDayBadge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Day 1 Focus
+            </span>
+            <span id="heroPhaseBadge" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+              Phase: SQL
+            </span>
+            <span id="heroStatusBadge" class="px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+              Not started
+            </span>
+          </div>
+
+          <h2 id="heroTopic" class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+            Loading topic...
+          </h2>
+
+          <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 mt-3">
+            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Today's Mission Task:</p>
+            <p id="heroTask" class="text-slate-200 text-sm leading-relaxed">
+              Loading task details...
+            </p>
+          </div>
+        </div>
+
+        <!-- Quick Status Toggle Buttons -->
+        <div class="flex flex-col space-y-3 min-w-[240px]">
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Update Status in Notion:</p>
+          <div class="grid grid-cols-1 gap-2">
+            <button onclick="updateActiveStatus('Not started')" id="btnStatusNotStarted" class="flex items-center justify-between px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-sm font-medium transition">
+              <span>⚪ Not started</span>
+              <span class="text-xs opacity-60">Reset</span>
+            </button>
+            <button onclick="updateActiveStatus('In progress')" id="btnStatusInProgress" class="flex items-center justify-between px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 text-sm font-medium transition">
+              <span>🟡 In progress</span>
+              <span class="text-xs opacity-80">Active</span>
+            </button>
+            <button onclick="updateActiveStatus('Done')" id="btnStatusDone" class="flex items-center justify-between px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 text-sm font-semibold transition">
+              <span>🟢 Completed</span>
+              <span class="text-xs opacity-80">Done</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resume Note Section -->
+      <div class="mt-8 pt-6 border-t border-slate-800/80 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label for="heroResumeNote" class="text-sm font-bold text-slate-200 flex items-center gap-2">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Where I Stopped / Resume Note
+            </label>
+            <span class="text-xs text-slate-400">Syncs directly to Notion</span>
+          </div>
+          <textarea id="heroResumeNote" rows="3" placeholder="e.g. Solved problem 1 & 2. Stopped at recursive CTE logic. Next step: write test case for lineage." class="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition"></textarea>
+          <div class="flex justify-end mt-2">
+            <button onclick="saveActiveResumeNote()" id="btnSaveNote" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-lg shadow transition flex items-center space-x-2">
+              <span id="saveNoteText">Save Note to Notion</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2-Hour Reminder Live Preview -->
+        <div class="bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+              <span class="flex items-center gap-1.5 text-indigo-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                2-Hour Telegram Reminder Preview
+              </span>
+              <button onclick="triggerTestReminder()" class="text-[11px] px-2 py-0.5 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition">
+                🚀 Send Test Alert
+              </button>
+            </div>
+            <div id="reminderPreviewBox" class="text-xs text-slate-300 space-y-1.5 font-mono bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+              <p class="text-indigo-300 font-bold">🔔 ETL AUTOMATION STUDY ALERT</p>
+              <p id="prevTopic">Day 1: ...</p>
+              <p id="prevTask" class="text-slate-400 truncate">Task: ...</p>
+              <p id="prevResume" class="text-amber-400 font-medium">⚠️ Resume note: None</p>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2">Active windows: 5:30 AM–11:30 AM &amp; 9:00 PM–12:00 AM IST. Automatically silenced during your 2–10 PM work shift and sleep.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 31-Day Interactive Curriculum Roadmap -->
+    <div class="space-y-5">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white tracking-tight">Full 31-Day Study Roadmap</h2>
+          <p class="text-xs text-slate-400">Click any day to inspect, edit notes, or update completion status.</p>
+        </div>
+
+        <!-- Phase Filter Tabs -->
+        <div id="filterPills" class="flex flex-wrap gap-1.5 text-xs">
+          <button onclick="filterPhase('all')" class="phase-btn active px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium" data-phase="all">All (31)</button>
+          <button onclick="filterPhase('SQL')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="SQL">SQL (5)</button>
+          <button onclick="filterPhase('Python & pytest')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="Python & pytest">Python/Pytest (7)</button>
+          <button onclick="filterPhase('Project')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="Project">Project (5)</button>
+          <button onclick="filterPhase('PySpark')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="PySpark">PySpark (5)</button>
+          <button onclick="filterPhase('Interview')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="Interview">Interview (3)</button>
+          <button onclick="filterPhase('Tools')" class="phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium" data-phase="Tools">Tools (6)</button>
+        </div>
+      </div>
+
+      <!-- Days Grid -->
+      <div id="daysGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered by JavaScript -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Telegram Settings Modal -->
+  <div id="tgModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl relative space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/20 text-sky-400 flex items-center justify-center">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 00-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-lg font-bold text-white">Telegram Notification Setup</h3>
+            <p class="text-xs text-slate-400">Get reminders directly on your phone lock screen</p>
+          </div>
+        </div>
+        <button onclick="closeTelegramModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Telegram Bot Token</label>
+          <input id="inputBotToken" type="password" placeholder="e.g. 7123456789:AAH..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          <p class="text-[11px] text-slate-500 mt-1">Get this by sending <code>/newbot</code> to <b>@BotFather</b> on Telegram.</p>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 uppercase mb-1">Your Telegram Chat ID</label>
+          <input id="inputChatId" type="text" placeholder="e.g. 123456789" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500">
+          <p class="text-[11px] text-slate-500 mt-1">Message <b>@userinfobot</b> on Telegram to get your numeric Chat ID.</p>
+        </div>
+
+        <!-- UptimeRobot Helper Box inside modal -->
+        <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs space-y-1.5">
+          <p class="font-semibold text-sky-400">🌐 UptimeRobot Keepalive &amp; Auto-Remind:</p>
+          <p class="text-slate-400">Set UptimeRobot to ping this endpoint every 5–10 mins to keep Render awake 24/7:</p>
+          <div class="flex items-center space-x-2 mt-1">
+            <code id="pingUrlCode" class="text-slate-300 bg-slate-900 px-2 py-1 rounded border border-slate-800 text-[11px] flex-1 truncate">/api/ping</code>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
+        <button onclick="triggerTestReminder()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition">
+          🔔 Test Alert
+        </button>
+        <div class="flex space-x-2">
+          <button onclick="closeTelegramModal()" class="px-4 py-2 bg-slate-800 text-slate-400 hover:text-white text-xs font-medium rounded-xl transition">
+            Cancel
+          </button>
+          <button onclick="saveTelegramSettings()" id="btnSaveTg" class="px-5 py-2 bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold rounded-xl shadow-lg shadow-sky-500/20 transition">
+            Save & Connect
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed bottom-6 right-6 transform translate-y-24 opacity-0 transition-all duration-300 z-50 flex items-center space-x-3 bg-slate-900 border border-slate-700 px-4 py-3 rounded-2xl shadow-2xl text-sm">
+    <span id="toastIcon">✅</span>
+    <span id="toastMessage" class="text-slate-200 font-medium">Synced with Notion!</span>
+  </div>
+
+  <footer class="border-t border-slate-800 py-6 mt-12 bg-slate-950 text-center text-xs text-slate-500">
+    <p>ETL Automation Mastery • Render Free Tier + Notion API Integration</p>
+  </footer>
+
+  <!-- App Script -->
+  <script>
+    let planData = { days: [], active_day: null, stats: {} };
+    let currentFilter = 'all';
+    let selectedDay = null;
+
+    async function fetchPlan() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon.classList.add('animate-spin');
+      try {
+        const res = await fetch('/api/plan');
+        if (!res.ok) throw new Error('Failed to fetch plan from server');
+        planData = await res.json();
+        
+        if (!selectedDay) {
+          selectedDay = planData.active_day || planData.days[0];
+        } else {
+          selectedDay = planData.days.find(d => d.day === selectedDay.day) || selectedDay;
+        }
+
+        renderMetrics();
+        renderHero();
+        renderGrid();
+      } catch (err) {
+        showToast('❌ Error loading from Notion: ' + err.message);
+      } finally {
+        setTimeout(() => refreshIcon.classList.remove('animate-spin'), 600);
+      }
+    }
+
+    async function checkTelegramStatus() {
+      try {
+        const res = await fetch('/api/settings/telegram');
+        const data = await res.json();
+        const btn = document.getElementById('tgBtnLabel');
+        if (data.configured) {
+          btn.innerText = 'Telegram: Connected ✅';
+          if (data.chat_id) document.getElementById('inputChatId').value = data.chat_id;
+        } else {
+          btn.innerText = 'Setup Telegram ⚙️';
+        }
+
+        // Update schedule pill
+        const dot = document.getElementById('scheduleDot');
+        const text = document.getElementById('scheduleText');
+        if (data.in_alert_window) {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse';
+          text.innerText = `Alerts Active (${data.ist_time})`;
+          text.className = 'text-emerald-300 font-medium';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+          text.innerText = `Quiet Hours (${data.ist_time})`;
+          text.className = 'text-slate-400';
+        }
+      } catch (e) {}
+    }
+
+    function openTelegramModal() {
+      document.getElementById('tgModal').classList.remove('hidden');
+      document.getElementById('pingUrlCode').innerText = window.location.origin + '/api/ping';
+    }
+
+    function closeTelegramModal() {
+      document.getElementById('tgModal').classList.add('hidden');
+    }
+
+    async function saveTelegramSettings() {
+      const token = document.getElementById('inputBotToken').value.trim();
+      const chat = document.getElementById('inputChatId').value.trim();
+      if (!token || !chat) {
+        showToast('Please enter both Bot Token and Chat ID', '⚠️');
+        return;
+      }
+      try {
+        const res = await fetch('/api/settings/telegram', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ bot_token: token, chat_id: chat })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Telegram credentials saved! ✅');
+          checkTelegramStatus();
+          closeTelegramModal();
+        }
+      } catch (e) {
+        showToast('Failed to save Telegram settings: ' + e.message, '❌');
+      }
+    }
+
+    async function triggerTestReminder() {
+      showToast('Sending test alert to Telegram...', '🚀');
+      const token = document.getElementById('inputBotToken').value.trim();
+      const chat = document.getElementById('inputChatId').value.trim();
+      
+      const payload = {};
+      if (token && chat) {
+        payload.bot_token = token;
+        payload.chat_id = chat;
+      }
+
+      try {
+        const res = await fetch('/api/reminder/test', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Notification sent to your Telegram! Check phone 📱', '🎉');
+        } else {
+          showToast(data.detail || 'Failed to send alert', '⚠️');
+          openTelegramModal();
+        }
+      } catch (e) {
+        showToast('Error: ' + e.message, '❌');
+        openTelegramModal();
+      }
+    }
+
+    function renderMetrics() {
+      const s = planData.stats;
+      document.getElementById('statCoreProgress').innerText = `${s.core_completed} / 25 Days`;
+      document.getElementById('statCorePercent').innerText = `${s.core_percent}%`;
+      document.getElementById('statProgressBar').style.width = `${s.core_percent}%`;
+      document.getElementById('statActiveDay').innerText = `Day ${planData.active_day ? planData.active_day.day : '-'}`;
+      document.getElementById('statActivePhase').innerText = `Phase: ${planData.active_day ? planData.active_day.phase : '-'}`;
+      document.getElementById('statInProgress').innerText = `${s.in_progress_days} Topics`;
+      document.getElementById('statTotalDays').innerText = `${s.completed_days} / ${s.total_days} Days`;
+    }
+
+    function renderHero() {
+      if (!selectedDay) return;
+      const d = selectedDay;
+
+      document.getElementById('heroDayBadge').innerText = d.target_date ? `Day ${d.day} Focus (${d.target_date_short})` : `Day ${d.day} Selected`;
+      document.getElementById('heroPhaseBadge').innerText = `Phase: ${d.phase}`;
+      
+      const statusBadge = document.getElementById('heroStatusBadge');
+      statusBadge.innerText = d.status;
+      if (d.status === 'Done') {
+        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      } else if (d.status === 'In progress') {
+        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      } else {
+        statusBadge.className = 'px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-400 border border-slate-700';
+      }
+
+      document.getElementById('heroTopic').innerText = d.topic;
+      document.getElementById('heroTask').innerText = d.task || 'No detailed task recorded.';
+      document.getElementById('heroResumeNote').value = d.resume_note || '';
+
+      // Live Reminder Preview
+      document.getElementById('prevTopic').innerText = `Day ${d.day}: ${d.topic}`;
+      document.getElementById('prevTask').innerText = `Task: ${d.task}`;
+      const resumeEl = document.getElementById('prevResume');
+      if (d.resume_note && d.resume_note.trim()) {
+        resumeEl.innerText = `⚠️ Resume: "${d.resume_note}"`;
+        resumeEl.className = 'text-amber-400 font-medium';
+      } else {
+        resumeEl.innerText = '💡 No stop note recorded. Starting clean!';
+        resumeEl.className = 'text-slate-400 font-normal';
+      }
+    }
+
+    function renderGrid() {
+      const container = document.getElementById('daysGrid');
+      container.innerHTML = '';
+
+      const filtered = planData.days.filter(d => {
+        if (currentFilter === 'all') return true;
+        return d.phase.toLowerCase() === currentFilter.toLowerCase();
+      });
+
+      filtered.forEach(d => {
+        const isSelected = selectedDay && selectedDay.day === d.day;
+        const card = document.createElement('div');
+        card.className = `p-5 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+          isSelected 
+            ? 'bg-indigo-950/40 border-indigo-500/60 shadow-lg shadow-indigo-500/10 ring-1 ring-indigo-500/40' 
+            : 'bg-slate-900/90 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+        }`;
+        card.onclick = () => {
+          selectedDay = d;
+          renderHero();
+          renderGrid();
+          window.scrollTo({ top: 180, behavior: 'smooth' });
+        };
+
+        let statusClass = 'bg-slate-800 text-slate-400 border-slate-700';
+        let statusDot = 'bg-slate-500';
+        if (d.status === 'Done') {
+          statusClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+          statusDot = 'bg-emerald-500';
+        } else if (d.status === 'In progress') {
+          statusClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+          statusDot = 'bg-amber-500 animate-pulse';
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-xs font-bold text-slate-400 tracking-wider">DAY ${d.day}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-indigo-300 font-mono font-medium">${d.target_date_short || ''}</span>
+              </div>
+              <span class="text-[11px] px-2.5 py-0.5 rounded-full border font-semibold flex items-center gap-1.5 ${statusClass}">
+                <span class="w-1.5 h-1.5 rounded-full ${statusDot}"></span>
+                ${d.status}
+              </span>
+            </div>
+            <h4 class="font-bold text-slate-100 text-base leading-snug mb-2 line-clamp-2">${d.topic}</h4>
+            <p class="text-xs text-slate-400 line-clamp-2 mb-3">${d.task}</p>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+            <span class="truncate max-w-[150px] font-medium text-slate-400">${d.phase}</span>
+            ${d.resume_note ? '<span class="text-amber-400 text-[11px] font-medium flex items-center gap-1">📝 Has Note</span>' : '<span></span>'}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function filterPhase(phase) {
+      currentFilter = phase;
+      document.querySelectorAll('.phase-btn').forEach(btn => {
+        if (btn.getAttribute('data-phase') === phase) {
+          btn.className = 'phase-btn active px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-medium';
+        } else {
+          btn.className = 'phase-btn px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium';
+        }
+      });
+      renderGrid();
+    }
+
+    async function updateActiveStatus(newStatus) {
+      if (!selectedDay) return;
+      const targetDay = selectedDay;
+      showToast(`Syncing Day ${targetDay.day} as "${newStatus}" to Notion...`, '⏳');
+
+      try {
+        const res = await fetch('/api/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page_id: targetDay.page_id,
+            status: newStatus
+          })
+        });
+
+        if (!res.ok) throw new Error('Update failed on server');
+        const data = await res.json();
+        
+        targetDay.status = newStatus;
+        if (newStatus === 'Done') {
+          targetDay.last_done = new Date().toISOString().split('T')[0];
+        }
+
+        renderMetrics();
+        renderHero();
+        renderGrid();
+        showToast(`Day ${targetDay.day} status updated to "${newStatus}" in Notion! ✅`);
+      } catch (err) {
+        showToast('❌ Error: ' + err.message);
+      }
+    }
+
+    async function saveActiveResumeNote() {
+      if (!selectedDay) return;
+      const note = document.getElementById('heroResumeNote').value;
+      const saveText = document.getElementById('saveNoteText');
+      saveText.innerText = 'Saving...';
+
+      try {
+        const res = await fetch('/api/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page_id: selectedDay.page_id,
+            resume_note: note
+          })
+        });
+
+        if (!res.ok) throw new Error('Failed to save resume note');
+        selectedDay.resume_note = note;
+        renderHero();
+        renderGrid();
+        showToast('Resume note saved to Notion! ✅');
+      } catch (err) {
+        showToast('❌ Error: ' + err.message);
+      } finally {
+        saveText.innerText = 'Save Note to Notion';
+      }
+    }
+
+    function showToast(message, icon = '✅') {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastIcon').innerText = icon;
+      document.getElementById('toastMessage').innerText = message;
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3500);
+    }
+
+    document.getElementById('heroResumeNote').addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      const resumeEl = document.getElementById('prevResume');
+      if (val) {
+        resumeEl.innerText = `⚠️ Resume: "${val}"`;
+        resumeEl.className = 'text-amber-400 font-medium';
+      } else {
+        resumeEl.innerText = '💡 No stop note recorded. Starting clean!';
+        resumeEl.className = 'text-slate-400 font-normal';
+      }
+    });
+
+    fetchPlan();
+    checkTelegramStatus();
+  </script>
+</body>
+</html>
